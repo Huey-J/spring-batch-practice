@@ -1,5 +1,8 @@
 package com.yapp.buddycon.batch;
 
+import com.yapp.buddycon.batch.chunk.SimpleProcessor;
+import com.yapp.buddycon.batch.chunk.SimpleReader;
+import com.yapp.buddycon.batch.chunk.SimpleWriter;
 import com.yapp.buddycon.repository.Gifticon;
 import com.yapp.buddycon.repository.GifticonRepository;
 import java.util.Arrays;
@@ -13,6 +16,8 @@ import org.springframework.batch.core.configuration.annotation.StepBuilderFactor
 import org.springframework.batch.core.scope.context.ChunkContext;
 import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.item.ItemProcessor;
+import org.springframework.batch.item.ItemReader;
+import org.springframework.batch.item.ItemWriter;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.context.annotation.Bean;
@@ -33,7 +38,8 @@ public class BatchConfig {
     return this.jobBuilderFactory.get("helloJob")
         .start(helloStep1())
         .next(jdbcStep2())
-        .next(chunkStep3())
+        .next(simpleChunkStep3())
+        .next(chunkStep4())
         .build();
   }
 
@@ -68,13 +74,42 @@ public class BatchConfig {
   }
 
   @Bean
-  public Step chunkStep3() {
+  public Step simpleChunkStep3() {
     return stepBuilderFactory.get("chunkStep3")
         .<String, String>chunk(3)
         .reader(new ListItemReader<>(Arrays.asList("item1", "item2", "item3","item4", "item5", "item6")))
         .processor((ItemProcessor<String, String>) item -> "my_" + item)
         .writer(items -> items.forEach(item -> System.out.println(item)))
         .build();
+  }
+
+  @Bean
+  public Step chunkStep4() {
+    return stepBuilderFactory.get("chunkStep4")
+        .<String, String>chunk(3)
+        .reader(itemReader())
+        .processor(itemProcessor())
+        .writer(itemWriter())
+        .build();
+  }
+
+  @Bean
+  public ItemReader itemReader() {
+    return new SimpleReader(Arrays.asList(
+        new Gifticon(1l, "gifticon1", true),
+        new Gifticon(2l, "기프티콘 두번째", true),
+        new Gifticon(3l, "스타벅스 5천원", false)
+    ));
+  }
+
+  @Bean
+  public ItemProcessor itemProcessor() {
+    return new SimpleProcessor();
+  }
+
+  @Bean
+  public ItemWriter itemWriter() {
+    return new SimpleWriter();
   }
 
 }
