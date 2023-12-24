@@ -7,6 +7,7 @@ import com.yapp.buddycon.repository.Gifticon;
 import com.yapp.buddycon.repository.GifticonRepository;
 import java.util.Arrays;
 import java.util.List;
+import javax.sql.DataSource;
 import lombok.RequiredArgsConstructor;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
@@ -18,6 +19,8 @@ import org.springframework.batch.core.step.tasklet.Tasklet;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemReader;
 import org.springframework.batch.item.ItemWriter;
+import org.springframework.batch.item.database.JdbcCursorItemReader;
+import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder;
 import org.springframework.batch.item.support.ListItemReader;
 import org.springframework.batch.repeat.RepeatStatus;
 import org.springframework.context.annotation.Bean;
@@ -30,6 +33,9 @@ public class BatchConfig {
   // Job, Step을 생성하는 빌더 팩토리
   private final JobBuilderFactory jobBuilderFactory;
   private final StepBuilderFactory stepBuilderFactory;
+
+  private final DataSource dataSource;
+
   private final GifticonRepository gifticonRepository;
 
   @Bean
@@ -38,8 +44,9 @@ public class BatchConfig {
     return this.jobBuilderFactory.get("helloJob")
         .start(helloStep1())
         .next(jdbcStep2())
-        .next(simpleChunkStep3())
+        .next(easyChunkStep3())
         .next(chunkStep4())
+        .next(jdbcCursorChunkStep5())
         .build();
   }
 
@@ -74,8 +81,8 @@ public class BatchConfig {
   }
 
   @Bean
-  public Step simpleChunkStep3() {
-    return stepBuilderFactory.get("chunkStep3")
+  public Step easyChunkStep3() {
+    return stepBuilderFactory.get("easyChunkStep3")
         .<String, String>chunk(3)
         .reader(new ListItemReader<>(Arrays.asList("item1", "item2", "item3","item4", "item5", "item6")))
         .processor((ItemProcessor<String, String>) item -> "my_" + item)
@@ -87,14 +94,14 @@ public class BatchConfig {
   public Step chunkStep4() {
     return stepBuilderFactory.get("chunkStep4")
         .<String, String>chunk(3)
-        .reader(itemReader())
-        .processor(itemProcessor())
-        .writer(itemWriter())
+        .reader(simpleItemReader())
+        .processor(simpleItemProcessor())
+        .writer(simpleItemWriter())
         .build();
   }
 
   @Bean
-  public ItemReader itemReader() {
+  public ItemReader simpleItemReader() {
     return new SimpleReader(Arrays.asList(
         new Gifticon(1l, "gifticon1", true),
         new Gifticon(2l, "기프티콘 두번째", true),
@@ -103,13 +110,36 @@ public class BatchConfig {
   }
 
   @Bean
-  public ItemProcessor itemProcessor() {
+  public ItemProcessor simpleItemProcessor() {
     return new SimpleProcessor();
   }
 
   @Bean
-  public ItemWriter itemWriter() {
+  public ItemWriter simpleItemWriter() {
     return new SimpleWriter();
+  }
+
+  @Bean
+  public Step jdbcCursorChunkStep5() {
+    return stepBuilderFactory.get("jdbcCursorChunkStep5")
+        .<Gifticon, Gifticon>chunk(5)
+        .reader(jdbcCursorItemReader())
+        .writer(items -> items.forEach(item -> System.out.println(item.toString())))
+        .build();
+  }
+
+  @Bean
+  public JdbcCursorItemReader<Gifticon> jdbcCursorItemReader() {
+    return new JdbcCursorItemReaderBuilder()
+        .name("jdbcCursorItemReader")
+        .fetchSize(5)
+        .sql("SELECT gifticon_id AS id, name, used FROM gifticon")
+        .beanRowMapper(Gifticon.class)
+//        .maxItemCount(20)       // ?
+//        .currentItemCount(5)    // ?
+//        .maxRows(100)           // ?
+        .dataSource(dataSource)
+        .build();
   }
 
 }
